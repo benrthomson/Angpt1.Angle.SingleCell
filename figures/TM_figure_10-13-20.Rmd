@@ -1,0 +1,236 @@
+---
+title: "TM_figure"
+author: "Ben Thomson"
+date: "12/2/2020"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = T, include = T, results = F, cache = FALSE, fig.width = 6, fig.height = 8, warning = FALSE, message = FALSE)
+  
+#Load libraries
+
+  library(Seurat)
+  library(dplyr)
+  library(gdata)
+  library(sctransform)
+  library(cowplot)
+  library(patchwork)
+  library(ggplot2)
+  library(gridExtra)
+  library(clustree)
+  library(data.table)
+  library(scDblFinder)
+  library(future)
+  library(kableExtra)
+  library(intrinsicDimension)
+
+
+  theme_set(theme_cowplot())
+  theme(aspect.ratio=1)
+
+
+
+
+```
+
+
+```{r}
+
+  TM.dataset  <- readRDS("../data/6wk_TM_subset_10-7-20.rds.gz")
+  full.dataset  <- readRDS("../data/full_dataset_10-2-20.rds.gz")
+
+  TM.dataset@active.ident <- factor(TM.dataset@active.ident, 
+                                    levels = c("TM_1", "TM_2", "TM_3", "TM_4", "TM_5", "TM_6", 
+                                              "TM_7", "TM_8","TM_9", "TM_10", "TM_11"))
+
+```
+
+```{r panel.a}
+
+  panel.a.fig.wt <- DimPlot(object = subset(TM.dataset, subset = genotype == "WT"), 
+                            reduction = "umap", label = TRUE, pt.size = 0.5, label.size = 4)  +
+    NoLegend() + coord_fixed() + theme(aspect.ratio=0.7) + 
+    theme(axis.line = element_line(color="black", size = 0.7)) +
+    theme(axis.title = element_text(size = 10))
+  
+  panel.a.fig.ko <- DimPlot(object = subset(TM.dataset, subset = genotype == "KO"), 
+                            reduction = "umap", label = TRUE, pt.size = 0.5, label.size = 4)  +
+    NoLegend() + coord_fixed() + theme(aspect.ratio=0.7) + 
+    theme(axis.line = element_line(color="black", size = 0.7)) +
+    theme(axis.line.y = element_blank(), axis.ticks.y = element_blank(), axis.text.y = element_blank()) +
+    theme(axis.title.x = element_text(size = 10)) +
+    theme(axis.title.y = element_blank())
+
+  
+
+  panel.a.fig.wt + panel.a.fig.ko
+  
+  pdf(file = "../figures/TM_figure_a.pdf", width = 5, height = 2)
+  plot(panel.a.fig.wt + panel.a.fig.ko)
+  dev.off()
+  
+  keep(TM.dataset, full.dataset, sure = T)
+
+
+```
+
+
+```{r panel.b}
+  DefaultAssay(TM.dataset) <- "RNA"
+  panel.b.fig.wt <- FeaturePlot(object = subset(TM.dataset, subset = genotype == "WT"), features = "Angpt1",
+                            reduction = "umap", label = F, pt.size = 0.5, label.size = 4, order = T)  +
+    coord_fixed() + theme(aspect.ratio=0.7) + 
+    theme(axis.line = element_line(color="black", size = 0.7)) +
+    theme(axis.title = element_text(size = 10)) +
+    scale_color_gradientn( colours = c('lightgrey', 'blue'),  limits = c(0, 4))
+  
+  panel.b.fig.ko <- FeaturePlot(object = subset(TM.dataset, subset = genotype == "KO"), features = "Angpt1",
+                            reduction = "umap", label = F, pt.size = 0.5, label.size = 4, order = T)  +
+    coord_fixed() + theme(aspect.ratio=0.7) + 
+    theme(axis.line = element_line(color="black", size = 0.7)) +
+    theme(axis.line.y = element_blank(), axis.ticks.y = element_blank(), axis.text.y = element_blank()) +
+    theme(axis.title.x = element_text(size = 10)) +
+    theme(axis.title.y = element_blank()) +
+    scale_color_gradientn( colours = c('lightgrey', 'blue'),  limits = c(0, 4))
+  
+
+  
+
+  
+
+  panel.b.fig.wt + panel.b.fig.ko
+  
+  pdf(file = "../figures/TM_figure_b.pdf", width = 5, height = 2)
+  plot(panel.b.fig.wt + panel.b.fig.ko)
+  dev.off()
+  
+  keep(TM.dataset, full.dataset, sure = T)
+
+
+```
+```{r panel.c}
+  DefaultAssay(TM.dataset) <- "RNA"
+  panel.c.fig.wt <- VlnPlot(object = subset(TM.dataset, subset = genotype == "WT"), features = "Angpt1",
+                            label = F, pt.size = 0, label.size = 4)  + NoLegend() +
+    theme(axis.ticks= element_blank(), axis.text.y = element_blank(), 
+            axis.title.x = element_blank()) +
+            theme(title = element_text(family = "sans", face = "italic")) +
+            theme(axis.line = element_line(size = 0.7)) +
+            NoLegend() +
+            scale_y_continuous(expand = c(0, 0)) +
+            theme(aspect.ratio=0.2) +
+            theme(axis.title.y = element_blank())
+  
+  panel.c.fig.ko <- VlnPlot(object = subset(TM.dataset, subset = genotype == "KO"), features = "Angpt1",
+                            label = F, pt.size = 0, label.size = 4)  + NoLegend() +
+    theme(axis.ticks= element_blank(), axis.text.y = element_blank(), 
+            axis.title.x = element_blank()) +
+            theme(title = element_text(family = "sans", face = "italic")) +
+            theme(axis.line = element_line(size = 0.7)) +
+            NoLegend() +
+            scale_y_continuous(expand = c(0, 0)) +
+            theme(aspect.ratio=0.2) +
+            theme(axis.title.y = element_blank())
+
+  
+
+  panel.c.fig.wt + panel.c.fig.ko
+  
+  pdf(file = "../figures/TM_figure_c.pdf", width = 5, height = 2)
+  plot(panel.c.fig.wt + panel.c.fig.ko)
+  dev.off()
+  
+  keep(TM.dataset, full.dataset, sure = T)
+
+
+```
+
+
+
+
+```{r panel.d}
+
+total.cells <- table(full.dataset@meta.data$genotype)
+
+sample.names <- c("WT", "KO")
+
+#get total number of cells per TM cluster and calculate each cluster as % of total cells per genotype
+cells.per.cluster <- table(TM.dataset@active.ident, TM.dataset@meta.data$genotype)
+WT <- cells.per.cluster[,"WT"] / total.cells[["WT"]] * 100
+KO <- cells.per.cluster[,"KO"] / total.cells[["KO"]] * 100
+diff <- KO/WT * 100
+cells.per.cluster.pct <- data.frame(WT, KO, diff, row.names = rownames(cells.per.cluster))
+
+#add the total number of corneal/limbal epithelial cells
+cells.total.epi <- table(full.dataset@active.ident, full.dataset@meta.data$genotype)[3:5,]
+WT <- sum(cells.total.epi[,"WT"]) / total.cells[["WT"]] * 100
+KO <- sum(cells.total.epi[,"KO"]) / total.cells[["KO"]] * 100
+diff <- KO/WT * 100
+epi.df <- data.frame(WT, KO, diff, row.names = "Total epi")
+
+#merge the two frames
+cells.per.cluster.pct <- rbind(epi.df, cells.per.cluster.pct)
+
+
+
+cells.per.cluster.pct %>%
+kbl(caption = "Cells per cluster (percent of all cells in dataset)") %>%
+kable_minimal(full_width = FALSE, position = "left") 
+
+write.csv(cells.per.cluster.pct, file = "../figures/TM_cell_number_pcts.csv")
+
+keep(TM.dataset, full.dataset, sure = T)
+
+
+```
+
+
+```{r panel.e, fig.height=16}
+
+
+  plot.list.e <- VlnPlot(TM.dataset, assay = "RNA", features = c( "Kera", "Cdh2", "Atp1b1", "Cldn10", "Myoc", "Chil1", "Chad", "Nell2", "Tnc", "Rgs5", "Clec3b", "Mfap5", "Tnxb", "Nrp2", "Cd34", "Fmo2", "C2", "Cfb", "Cxcl5", "Svep1", "Mki67", "Kera"), 
+                         pt.size = 0, combine = F)
+  
+  for(i in seq_along(plot.list.e)) {
+   plot.list.e[[i]] <- plot.list.e[[i]] +
+      theme(axis.ticks= element_blank(), axis.text.y = element_blank(), 
+            axis.title.x = element_blank()) +
+            theme(title = element_text(family = "sans", face = "italic")) +
+            theme(axis.line = element_line(size = 0.7)) +
+            NoLegend() +
+            scale_y_continuous(expand = c(0, 0)) +
+            theme(aspect.ratio=0.3) +
+            theme(axis.title.y = element_blank())
+   
+   if(i > (length(plot.list.e) - 3)) {
+     plot.list.e[[i]] <- plot.list.e[[i]] +
+       theme(axis.text.x = element_text())
+    } else {
+     plot.list.e[[i]] <- plot.list.e[[i]] +
+      theme(axis.text.x = element_blank())
+   }
+   
+ }
+  
+  wrap_plots(plot.list.e, ncol = 3)
+  
+  pdf(file = "../figures/TM_figure_e_v2.pdf", width = 5, height = 5)
+  plot(wrap_plots(plot.list.e))
+  dev.off()
+  
+  keep(TM.dataset, full.dataset, sure = T)
+  
+
+```
+
+```{r clustertree}
+PlotClusterTree(TM.dataset)
+
+ pdf(file = "../figures/TM_figure_I_.pdf", width = 5, height = 5)
+PlotClusterTree(TM.dataset)
+  dev.off()
+
+```
+
+

@@ -1,0 +1,215 @@
+---
+title: "EC_figure"
+author: "Ben Thomson"
+date: "10/1/2020"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = T, include = T, results = F, cache = FALSE, fig.width = 6, fig.height = 8, warning = FALSE, message = FALSE)
+  
+#Load libraries
+
+  library(Seurat)
+  library(dplyr)
+  library(gdata)
+  library(sctransform)
+  library(cowplot)
+  library(patchwork)
+  library(ggplot2)
+  library(gridExtra)
+  library(clustree)
+  library(data.table)
+  library(scDblFinder)
+  library(future)
+  library(kableExtra)
+  library(intrinsicDimension)
+  library(scales)
+
+
+  theme_set(theme_cowplot())
+  theme(aspect.ratio=1)
+
+
+
+#list of sex-specific features taken from Skelly et al.
+#https://doi.org/10.1016/j.celrep.2017.12.072
+sex.specific.features <- c("Xist", "Ddx3y", "Eif2s3y", "Erdr1", "Gm29650", "Kdm5d", "Uty")
+
+bad.features <- c("Angpt1", sex.specific.features)
+
+
+
+
+```
+
+
+```{r}
+
+  full.dataset  <- readRDS("../data/full_dataset_10-2-20.rds.gz")
+
+```
+
+
+
+
+```{r panel.a, fig.width=6}
+
+  #plot overall cluster map, genotypes merged
+  p1 <- DimPlot(object = full.dataset, reduction = "umap", label = TRUE, pt.size = 0.5, 
+                label.size = 4, repel = FALSE, cols = rev(hue_pal()(25))) + 
+                NoLegend() +
+                theme(aspect.ratio=1.2) +
+                #theme(axis.line = element_line(color="black", size = 0.7)) +
+                theme(axis.title = element_text(size = 10))
+  
+
+  #compare distribution of WT and Angpt1dNC cells
+  p2 <- DimPlot(object = full.dataset, reduction = "umap", label = FALSE, group.by = "genotype", 
+                pt.size = 0.5, label.size = 8) +
+                NoLegend() +
+                theme(aspect.ratio=1.2) + 
+                #theme(axis.line = element_line(color="black", size = 0.7)) +
+                theme(axis.title = element_text(size = 10))
+  
+  full.dataset$genotype <- factor(x = full.dataset$genotype, levels = c("WT", "KO"))
+  
+  #Show number of Angpt1 expressing cells in WT and Angpt1dNC samples.
+  p3 <- VlnPlot(full.dataset, group.by = 'genotype', features = "Angpt1", assay = "RNA", pt.size = 0.5) + 
+                NoLegend() +
+                theme(aspect.ratio = 2.5) +
+                #theme(axis.line = element_line(size = 0.7)) +
+                theme(axis.ticks.x = element_blank()) +
+                theme(title = element_blank()) 
+                #theme(plot.margin = unit(c(0,0,0,0), "cm"))
+  
+  #plot the figure, including a vln plot showing Angpt1 expression by cluster in the WT dataset.
+    
+    p4 <- VlnPlot(subset(full.dataset, subset = genotype == "WT"), 
+                     features = "Angpt1", pt.size = 0, assay = "RNA") + NoLegend() 
+                  #theme(aspect.ratio = 0.2)
+    
+    #p4 + plot_layout(widths = 2.5)
+    
+  top <- (p1 + p2 + p3) + plot_layout(widths = c(1,1,0.7), heights = c(1))
+  
+  wrap_plots(top, p4, ncol = 1) + plot_layout(widths = 1, heights = c(4,1))
+  
+  pdf(file = "../figures/full_figure_a-d.pdf", width = 5, height = 5)
+  wrap_plots(top, p4, ncol = 1) + plot_layout(widths = 1, heights = c(4,1))
+  dev.off()
+ 
+
+
+```
+
+```{r supp.fig.4}
+
+
+ p1 <- DimPlot(object = full.dataset, reduction = "umap", label = TRUE, pt.size = 0.5, 
+                label.size = 4, repel = FALSE, cols = rev(hue_pal()(25))) + 
+                NoLegend() +
+                #theme(axis.line = element_line(color="black", size = 0.7)) +
+                theme(axis.title = element_text(size = 10))
+ 
+ p2 <- FeaturePlot(full.dataset, features = "Angpt1", pt.size = 0.5, 
+                   split.by = "genotype", combine = T, order = T) 
+  
+plot_grid(p1,p2, rel_widths = c(1,2))
+
+```
+
+```{r vlnplotmarkers, fig.height=6, fig.width=8}
+
+selectedmarkers <- as.data.frame(read.csv("../diff_exp_by_cluster/FullClusterMarkers_10-2-20.csv",
+                                          stringsAsFactors = FALSE))["Marker"]
+
+rev.levels <- list()
+for (x in seq_along(full.dataset@active.ident)) {
+  rev.levels[x] <- length(levels(full.dataset@active.ident)) - (x-1)
+}
+
+full.dataset.vln <- full.dataset
+full.dataset.vln@active.ident <- factor(x = full.dataset.vln@active.ident, levels = rev.levels)
+
+selectedmarkers <- unlist(selectedmarkers$Marker)
+int.vln <- VlnPlot(full.dataset.vln, features = selectedmarkers, ncol = 1, pt.size = 0, 
+                   assay = "RNA", combine = FALSE)
+p1 <- list()
+ for(i in seq_along(int.vln)) {
+   p1[[i]] <- int.vln[[i]] + theme(axis.ticks.x = element_blank(), axis.text.x = element_blank(), 
+                                   axis.title = element_blank(), #title = element_blank(), 
+                                   axis.ticks.y = element_blank()) + 
+                                   NoLegend() + #theme(axis.text.y = element_blank()) +
+                                   #theme(axis.line = element_line(size = 0.7)) +
+                                  coord_flip() + theme(title = element_text(angle = 45))
+   
+   if(i != 1) {
+     p1[[i]] <- p1[[i]] + theme(axis.text.y = element_blank())
+   }
+ }
+
+wrap_plots(p1, nrow = 1)
+
+  pdf(file = "../figures/full_figure_e.pdf", width = 5, height = 5)
+  wrap_plots(p1, nrow = 1)
+  dev.off()
+
+rm(full.dataset.vln)
+
+
+```
+```{r clustertree}
+
+PlotClusterTree(full.dataset)
+
+  pdf(file = "../figures/full_figure_cluster_tree.pdf", width = 5, height = 5)
+  PlotClusterTree(full.dataset)
+  dev.off()
+
+
+
+```
+
+
+```{r Angpt1_cells}
+
+DefaultAssay(full.dataset) <- "RNA"
+table(full.dataset@meta.data$orig.ident)
+table(subset(full.dataset, subset = Angpt1> 0)@meta.data$orig.ident)
+
+```
+
+Data from panel A was also used to generate Supplemental figure 6.
+
+```{r supp.fig.6}
+
+  p1 <- DimPlot(object = full.dataset, reduction = "umap", label = TRUE, pt.size = 0.5, 
+                label.size = 4, repel = FALSE, cols = rev(hue_pal()(25))) + 
+                NoLegend() +
+                theme(aspect.ratio=1.2) +
+                theme(axis.title = element_text(size = 10))
+
+  p2 <- FeaturePlot(object = subset(full.dataset, subset = genotype == "WT"), features = "Angpt1",
+                            reduction = "umap", label = F, pt.size = 0.5, label.size = 4, order = T)  +
+    coord_fixed() + theme(aspect.ratio=1.2) + 
+    theme(axis.line = element_line(color="black", size = 0.7)) +
+    theme(axis.title = element_text(size = 10)) +
+    theme(axis.title.y = element_blank()) +
+    scale_color_gradientn( colours = c('lightgrey', 'blue'),  limits = c(0, 3)) + NoLegend()
+  
+  p3 <- FeaturePlot(object = subset(full.dataset, subset = genotype == "KO"), features = "Angpt1",
+                            reduction = "umap", label = F, pt.size = 0.5, label.size = 4, order = T)  +
+    coord_fixed() + theme(aspect.ratio=1.2) + 
+    theme(axis.line = element_line(color="black", size = 0.7)) +
+    theme(axis.title.x = element_text(size = 10)) +
+    theme(axis.title.y = element_blank()) +
+    scale_color_gradientn( colours = c('lightgrey', 'blue'),  limits = c(0, 3)) + NoLegend()
+  
+  p1 + p2 + p3
+  
+  pdf(file = "../figures/Supp_figure_6.pdf", width = 7, height = 4)
+  plot(p1 + p2 + p3)
+  dev.off()
+
+```
