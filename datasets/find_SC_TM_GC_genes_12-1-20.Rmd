@@ -1,0 +1,129 @@
+---
+title: "Glaucoma-associated genes expressed in SC and the TM: Table 1 & Supp. dataset 2"
+author: "Ben Thomson"
+date: "11/30/2020"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = T, include = T, results = T, cache = FALSE, fig.width = 8, fig.height = 6, 
+                      warning = FALSE, message = FALSE, cache.lazy = FALSE, tidy=TRUE, tidy.opts=list(arrow=TRUE, indent=2, width.cutoff=60))
+  
+#Load libraries
+
+  library(Seurat)
+  library(dplyr)
+  library(gdata)
+  library(sctransform)
+  library(cowplot)
+  library(patchwork)
+  library(ggplot2)
+  library(gridExtra)
+  library(clustree)
+  library(data.table)
+  library(scDblFinder)
+  library(future)
+  library(kableExtra)
+  library(intrinsicDimension)
+
+
+  theme_set(theme_cowplot())
+  theme(aspect.ratio=1)
+  
+
+
+```
+
+
+To identify key glaucoma genes expressed in the TM and SC endothelium, we generate a new dataset consisting of TM and SC cells. This dataset consists of the SC endothelial cluster as well as TM3-5, TM7 and the beam-like cluster TM11.
+
+
+```{r loadData, fig.width=8}
+
+  full.dataset  <- readRDS("../data/full_dataset_10-2-20.rds.gz")
+  TM.dataset  <- readRDS("../data/6wk_TM_subset_10-7-20.rds.gz")
+  EC.dataset  <- readRDS("../data/6wk_endos_10-1-20.rds.gz")
+  
+  full.dataset <- SetIdent(full.dataset, cells = Cells(TM.dataset), 
+                              value = TM.dataset@active.ident)
+  full.dataset <- SetIdent(full.dataset, cells = Cells(EC.dataset), 
+                              value = EC.dataset@active.ident)
+  
+  SC_TM.dataset <- subset(full.dataset, idents = c("SC", "TM_3", "TM_4", "TM_5", "TM_7", "TM_11"))
+  keep(SC_TM.dataset, sure = T)
+  
+  SC_TM.dataset <- RunUMAP(object = SC_TM.dataset, dims = 1:10, min.dist = 0.4, n.neighbors = 40, 
+                             verbose = FALSE)
+  
+  
+  DimPlot(SC_TM.dataset, label = TRUE, pt.size = 0.5, label.size = 4)  +
+    coord_fixed() + theme(aspect.ratio=0.7) + 
+    theme(axis.line = element_line(color="black", size = 0.7))
+
+```
+
+
+```{r renameidents}
+  SC_TM.dataset <- RenameIdents(SC_TM.dataset, 'TM_3' = "TM", 'TM_4' = "TM", 'TM_5' = "TM", 
+                                'TM_7' = "TM", 'TM_11' = "TM")
+
+  DimPlot(SC_TM.dataset, label = TRUE, pt.size = 0.5, label.size = 4)  +
+    coord_fixed() + theme(aspect.ratio=0.7) + 
+    theme(axis.line = element_line(color="black", size = 0.7))
+
+```
+
+
+Next, a list of all genes expressed in each cluster was generated and compared to a curated list of glaucoma-associated loci.
+
+
+```{r allexpressed, results=FALSE}
+
+glaucoma.genes <- read.csv("../data/glaucoma_loci.csv", stringsAsFactors = FALSE)
+
+sc.exp <- AverageExpression(subset(SC_TM.dataset, idents = "SC"), verbose = FALSE)$RNA
+sc.exp <- subset(sc.exp, subset = SC > 0.3)
+setDT(sc.exp, keep.rownames = "gene")[]
+SC <- sc.exp[sc.exp$gene %in% glaucoma.genes$Gene,]
+SC <- SC %>% dplyr::rename("SC" = "gene")
+
+TM.exp <- AverageExpression(subset(SC_TM.dataset, idents = "TM"), verbose = FALSE)$RNA
+TM.exp <- subset(TM.exp, subset = TM > 0.3)
+setDT(TM.exp, keep.rownames = "gene")[]
+TM <- TM.exp[TM.exp$gene %in% glaucoma.genes$Gene,]
+TM <- TM %>% dplyr::rename("TM" = "gene")
+
+
+SC_list <- as.list(SC[,1])
+TM_list <- as.list(TM[,1])
+
+
+Shared <- intersect(SC_list$SC, TM_list$TM)
+
+
+#identify non universal GC genes
+SC_list <- as.data.table(setdiff(SC_list$SC, Shared))
+setnames(SC_list, "SC" )
+TM_list <- as.data.table(setdiff(TM_list$TM, Shared))
+setnames(TM_list, "TM" )
+
+Shared <- as.data.table(Shared)
+setnames(Shared, "Shared genes")
+
+
+gene.table <- plyr::ldply(c(SC_list, TM_list, Shared),rbind)
+write.csv(t(gene.table), file = "../datasets/SC_TM_exp__GC_genes_12-1-20.csv")
+
+#now export list of all genes expressed in TM and SC populations
+write.csv(sc.exp, file = "../datasets/SC_exp_genes_all_12-1-20.csv")
+write.csv(TM.exp, file = "../datasets/tm_exp_genes_all_12-1-20.csv")
+
+
+```
+
+```{r print.result}
+kbl(t(gene.table)) %>% kable_minimal()
+```
+
+
+
